@@ -5,29 +5,29 @@ import type { AddReviewDeps } from '../app/add-review';
 import type { ListReviewsDeps } from '../app/list-reviews';
 import type { ReviewRepo } from '../domain/review-repo';
 
-// These non-secret values remain hard-coded for the Part C student exercise.
-const COSMOS_OPTIONS: Omit<CosmosReviewRepoOptions, 'key'> = {
-  endpoint: 'https://reviews-lab-ab47-cosmos-uksouth.documents.azure.com:443/',
-  databaseId: 'reviews-db',
-  containerId: 'reviews',
-};
+// Read a required setting lazily; never include its value in errors.
+function requireSetting(name: string): string {
+  const value = process.env[name];
+  if (!value || value.trim() === '') {
+    throw new Error(`${name} must be set to a non-empty value.`);
+  }
+  return value;
+}
 
 // Keep command-line target summaries free from credentials.
-export const getCosmosTarget = () => ({ ...COSMOS_OPTIONS });
+export const getCosmosTarget = (): Omit<CosmosReviewRepoOptions, 'key'> => ({
+  endpoint: requireSetting('COSMOS_ENDPOINT'),
+  databaseId: requireSetting('COSMOS_DATABASE_ID'),
+  containerId: requireSetting('COSMOS_CONTAINER_ID'),
+});
 
 let cachedReviewRepo: ReviewRepo | null = null;
 
 // Importing the composition root must not require configuration or create a client.
 export function getReviewRepo(): ReviewRepo {
   if (!cachedReviewRepo) {
-    const key = process.env.COSMOS_KEY;
-    if (!key || key.trim() === '') {
-      throw new Error(
-        'COSMOS_KEY must be set to a non-empty Cosmos DB account key.'
-      );
-    }
-
-    cachedReviewRepo = new CosmosReviewRepo({ ...COSMOS_OPTIONS, key });
+    const key = requireSetting('COSMOS_KEY');
+    cachedReviewRepo = new CosmosReviewRepo({ ...getCosmosTarget(), key });
   }
   return cachedReviewRepo;
 }
